@@ -1,73 +1,11 @@
 package types
 
 import (
-	"bufio"
-	"encoding/binary"
 	"io"
 
-	"github.com/gogo/protobuf/proto"
+	"github.com/golang/protobuf/proto"
+	"github.com/tendermint/go-wire"
 )
-
-const (
-	maxMsgSize = 104857600 // 100MB
-)
-
-// WriteMessage writes a varint length-delimited protobuf message.
-func WriteMessage(msg proto.Message, w io.Writer) error {
-	bz, err := proto.Marshal(msg)
-	if err != nil {
-		return err
-	}
-	return encodeByteSlice(w, bz)
-}
-
-// ReadMessage reads a varint length-delimited protobuf message.
-func ReadMessage(r io.Reader, msg proto.Message) error {
-	return readProtoMsg(r, msg, maxMsgSize)
-}
-
-func readProtoMsg(r io.Reader, msg proto.Message, maxSize int) error {
-	// binary.ReadVarint takes an io.ByteReader, eg. a bufio.Reader
-	reader, ok := r.(*bufio.Reader)
-	if !ok {
-		reader = bufio.NewReader(r)
-	}
-	length64, err := binary.ReadVarint(reader)
-	if err != nil {
-		return err
-	}
-	length := int(length64)
-	if length < 0 || length > maxSize {
-		return io.ErrShortBuffer
-	}
-	buf := make([]byte, length)
-	if _, err := io.ReadFull(reader, buf); err != nil {
-		return err
-	}
-	return proto.Unmarshal(buf, msg)
-}
-
-//-----------------------------------------------------------------------
-// NOTE: we copied wire.EncodeByteSlice from go-wire rather than keep
-// go-wire as a dep
-
-func encodeByteSlice(w io.Writer, bz []byte) (err error) {
-	err = encodeVarint(w, int64(len(bz)))
-	if err != nil {
-		return
-	}
-	_, err = w.Write(bz)
-	return
-}
-
-func encodeVarint(w io.Writer, i int64) (err error) {
-	var buf [10]byte
-	n := binary.PutVarint(buf[:], i)
-	_, err = w.Write(buf[0:n])
-	return
-}
-
-//----------------------------------------
 
 func ToRequestEcho(message string) *Request {
 	return &Request{
@@ -81,27 +19,27 @@ func ToRequestFlush() *Request {
 	}
 }
 
-func ToRequestInfo(req RequestInfo) *Request {
+func ToRequestInfo() *Request {
 	return &Request{
-		Value: &Request_Info{&req},
+		Value: &Request_Info{&RequestInfo{}},
 	}
 }
 
-func ToRequestSetOption(req RequestSetOption) *Request {
+func ToRequestSetOption(key string, value string) *Request {
 	return &Request{
-		Value: &Request_SetOption{&req},
+		Value: &Request_SetOption{&RequestSetOption{key, value}},
 	}
 }
 
-func ToRequestDeliverTx(tx []byte) *Request {
+func ToRequestDeliverTx(txBytes []byte) *Request {
 	return &Request{
-		Value: &Request_DeliverTx{&RequestDeliverTx{tx}},
+		Value: &Request_DeliverTx{&RequestDeliverTx{txBytes}},
 	}
 }
 
-func ToRequestCheckTx(tx []byte) *Request {
+func ToRequestCheckTx(txBytes []byte) *Request {
 	return &Request{
-		Value: &Request_CheckTx{&RequestCheckTx{tx}},
+		Value: &Request_CheckTx{&RequestCheckTx{txBytes}},
 	}
 }
 
@@ -111,27 +49,33 @@ func ToRequestCommit() *Request {
 	}
 }
 
-func ToRequestQuery(req RequestQuery) *Request {
+func ToRequestQuery(reqQuery RequestQuery) *Request {
 	return &Request{
-		Value: &Request_Query{&req},
+		Value: &Request_Query{&reqQuery},
 	}
 }
 
-func ToRequestInitChain(req RequestInitChain) *Request {
+func ToRequestInitChain(validators []*Validator) *Request {
 	return &Request{
-		Value: &Request_InitChain{&req},
+		Value: &Request_InitChain{&RequestInitChain{validators}},
 	}
 }
 
-func ToRequestBeginBlock(req RequestBeginBlock) *Request {
+func ToRequestBeginBlock(hash []byte, header *Header) *Request {
 	return &Request{
-		Value: &Request_BeginBlock{&req},
+		Value: &Request_BeginBlock{&RequestBeginBlock{hash, header}},
 	}
 }
 
-func ToRequestEndBlock(req RequestEndBlock) *Request {
+func ToRequestEndBlock(height uint64) *Request {
 	return &Request{
-		Value: &Request_EndBlock{&req},
+		Value: &Request_EndBlock{&RequestEndBlock{height}},
+	}
+}
+
+func ToRequestSetValidatorsAsync(validators []*Validator) *Request {
+	return &Request{
+		Value: &Request_SetValidators{&RequestSetValidators{validators}},
 	}
 }
 
@@ -155,56 +99,87 @@ func ToResponseFlush() *Response {
 	}
 }
 
-func ToResponseInfo(res ResponseInfo) *Response {
+func ToResponseInfo(resInfo ResponseInfo) *Response {
 	return &Response{
-		Value: &Response_Info{&res},
+		Value: &Response_Info{&resInfo},
 	}
 }
 
-func ToResponseSetOption(res ResponseSetOption) *Response {
+func ToResponseSetOption(log string) *Response {
 	return &Response{
-		Value: &Response_SetOption{&res},
+		Value: &Response_SetOption{&ResponseSetOption{log}},
 	}
 }
 
-func ToResponseDeliverTx(res ResponseDeliverTx) *Response {
+func ToResponseDeliverTx(code CodeType, data []byte, log string) *Response {
 	return &Response{
-		Value: &Response_DeliverTx{&res},
+		Value: &Response_DeliverTx{&ResponseDeliverTx{code, data, log}},
 	}
 }
 
-func ToResponseCheckTx(res ResponseCheckTx) *Response {
+func ToResponseCheckTx(code CodeType, data []byte, log string) *Response {
 	return &Response{
-		Value: &Response_CheckTx{&res},
+		Value: &Response_CheckTx{&ResponseCheckTx{code, data, log}},
 	}
 }
 
-func ToResponseCommit(res ResponseCommit) *Response {
+func ToResponseCommit(code CodeType, data []byte, log string) *Response {
 	return &Response{
-		Value: &Response_Commit{&res},
+		Value: &Response_Commit{&ResponseCommit{code, data, log}},
 	}
 }
 
-func ToResponseQuery(res ResponseQuery) *Response {
+func ToResponseQuery(resQuery ResponseQuery) *Response {
 	return &Response{
-		Value: &Response_Query{&res},
+		Value: &Response_Query{&resQuery},
 	}
 }
 
-func ToResponseInitChain(res ResponseInitChain) *Response {
+func ToResponseInitChain() *Response {
 	return &Response{
-		Value: &Response_InitChain{&res},
+		Value: &Response_InitChain{&ResponseInitChain{}},
 	}
 }
 
-func ToResponseBeginBlock(res ResponseBeginBlock) *Response {
+func ToResponseBeginBlock() *Response {
 	return &Response{
-		Value: &Response_BeginBlock{&res},
+		Value: &Response_BeginBlock{&ResponseBeginBlock{}},
 	}
 }
 
-func ToResponseEndBlock(res ResponseEndBlock) *Response {
+func ToResponseEndBlock(resEndBlock ResponseEndBlock) *Response {
 	return &Response{
-		Value: &Response_EndBlock{&res},
+		Value: &Response_EndBlock{&resEndBlock},
 	}
+}
+
+func ToResponseSetValidators() *Response {
+	return &Response{
+		Value: &Response_SetValidators{&ResponseSetValidators{}},
+	}
+}
+
+//----------------------------------------
+
+// Write proto message, length delimited
+func WriteMessage(msg proto.Message, w io.Writer) error {
+	bz, err := proto.Marshal(msg)
+	if err != nil {
+		return err
+	}
+	var n int
+	wire.WriteByteSlice(bz, w, &n, &err)
+	return err
+}
+
+// Read proto message, length delimited
+func ReadMessage(r io.Reader, msg proto.Message) error {
+	var n int
+	var err error
+	bz := wire.ReadByteSlice(r, 0, &n, &err)
+	if err != nil {
+		return err
+	}
+	err = proto.Unmarshal(bz, msg)
+	return err
 }

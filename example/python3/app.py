@@ -68,7 +68,7 @@ class CounterApplication():
 if __name__ == '__main__':
     l = len(sys.argv)
     if l == 1:
-        port = 26658
+        port = 46658
     elif l == 2:
         port = int(sys.argv[1])
     else:

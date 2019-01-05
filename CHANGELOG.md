@@ -1,157 +1,5 @@
 # Changelog
 
-## 0.12.0
-
-*2018-06-12*
-
-BREAKING CHANGES:
-
-- [abci-cli] Change rpc port from 46658 to 26658.
-- [examples] Change rpc port from 46658 to 26658.
-
-## 0.11.0
-
-*June 6, 2018*
-
-BREAKING CHANGES:
-
-- [example/dummy] Remove. See example/kvstore
-- [types] Upgrade many messages:
-    - RequestInitChain takes all fields from a Genesis file
-    - RequestBeginBlock provides a list of all validators and whether or not
-      they signed
-    - Header: remove some fields, add proposer
-    - BlockID, PartSetHeader: remove
-    - Validator: includes address
-    - PubKey: new message with `type` and `data`
-    - Evidence: add type and more fields
-
-FEATURES:
-
-- [types] Add some fields
-    - ResponseInitChain includes ConsensusParams and Validators
-    - ResponseBeginBlock includes tags
-    - ResponseEndBlock includes tags
-
-## 0.10.3 (April 9, 2018)
-
-IMPROVEMENTS:
-
-- Update tmlibs dep
-
-## 0.10.2 (March 23, 2018)
-
-Hot fix to remove `omitempty` from `fee` and to actually run `make
-protoc`
-
-## 0.10.1 (March 22, 2018)
-
-FEATURES:
-
-- [types] ResponseCheckTx and ResponseDeliverTx are now the same.
-- [example] `dummy` is duplicated as `kvstore`.
-
-IMPROVEMENTS:
-
-- glide -> Godep
-- remove pkg/errors
-- improve specification.rst
-
-## 0.10.0 (February 20, 2018)
-
-BREAKING CHANGES:
-
-- [types] Socket messages are length prefixed with real protobuf Varint instead of `<len of len><big endian len>`
-- [types] Drop gogo custom type magic with data.Bytes
-- [types] Use `[(gogoproto.nullable)=false]` to prefer value over pointer for the types
-- [types] Field re-ordering ...
-- [types] KVPair: replace with common.KVPair. Add common KI64Pair too (for fees).
-- [types] CheckTx/DeliverTx: updates for tags, gas, fees
-- [types] Commit: Remove code and log from Commit
-- [types] SetOption: Remove code
-- [example/dummy] remove dependence on IAVL
-- [types] IsOk/IsErr: methods removed
-
-FEATURES:
-
-- [types] SetOption/Query/CheckTx/DeliverTx: Add `info string` field to responses
-- [types] RequestInitChain.AppStateBytes for app's genesis state
-
-IMPROVEMENTS:
-
-- [all] remove go-wire and go-crypto dependencies :)
-
-## 0.9.0 (December 28, 2017)
-
-BREAKING CHANGES:
- - [types] Id -> ID
- - [types] ResponseEndBlock: renamed Diffs field to ValidatorUpdates
- - [types] changed protobuf field indices for Request and Response oneof types
-
-FEATURES:
- - [types] ResponseEndBlock: added ConsensusParamUpdates
-
-BUG FIXES:
- - [cmd] fix console and batch commands to use a single persistent connection
-
-## 0.8.0 (December 6, 2017)
-
-BREAKING CHANGES:
- - [client] all XxxSync methods now return (ResponseXxx, error)
- - [types] all methods on Application interface now take RequestXxx and return (ResponseXxx, error).
-    - Except `CheckTx`/`DeliverTx`, which takes a `tx []byte` argument.
-    - Except `Commit`, which takes no arguments.
- - [types] removed Result and ResultQuery
- - [types] removed CodeType - only `0 == OK` is defined here, everything else is left to convention at the application level
- - [types] switched to using `gogo/protobuf` for code generation
- - [types] use `customtype` feature of `gogo/protobuf` to replace `[]byte` with `data.Bytes` in all generated types :)
-    - this eliminates the need for additional types like ResultQuery
- - [types] `pubKey` -> `pub_key`
- - [types] `uint64` -> `int32` for `Header.num_txs` and `PartSetHeader.total`
- - [types] `uint64` -> `int64` for everything else
- - [types] ResponseSetOption includes error code
- - [abci-cli] codes are printed as their number instead of a message, except for `code == 0`, which is still printed as `OK`
-
-FEATURES:
- - [types] ResponseDeliverTx: added `tags` field
- - [types] ResponseCheckTx: added `gas` and `fee` fields
- - [types] RequestBeginBlock: added `absent_validators` and `byzantine_validators` fields
- - [dummy] DeliverTx returns an owner tag and a key tag
- - [abci-cli] added `log_level` flag to control the logger
- - [abci-cli] introduce `abci-cli test` command for simple testing of ABCI server implementations via Counter application
-
-## 0.7.1 (November 14, 2017)
-
-IMPROVEMENTS:
- - [cli] added version command
-
-BUG FIXES:
- - [server] fix "Connection error module=abci-server error=EOF"
-
-## 0.7.0 (October 27, 2017)
-
-BREAKING CHANGES:
- - [cli] consolidate example apps under a single `abci-cli` binary
-
-IMPROVEMENTS:
- - [cli] use spf13/cobra instead of urfave/cli
- - [dummy] use iavl instead of merkleeyes, and add support for historical queries
-
-BUG FIXES:
- - [client] fix deadlock on StopForError
-
-## 0.6.0 (September 22, 2017)
-
-BREAKING CHANGES:
-
-- [types/client] app.BeginBlock takes RequestBeginBlock
-- [types/client] app.InitChain takes RequestInitChain
-- [types/client] app.Info takes RequestInfo
-
-IMPROVEMENTS:
-
-- various linting
-
 ## 0.5.0 (May 18, 2017)
 
 BREAKING CHANGES:
@@ -171,7 +19,7 @@ IMPROVEMENTS:
 - Update imports for new `tmlibs` repository
 - Use the new logger
 - [abci-cli] Add flags to the query command for `path`, `height`, and `prove`
-- [types] use `data.Bytes` and `json` tags in the `Result` struct
+- [types] use `data.Bytes` and `json` tags in the `Result` struct 
 
 BUG FIXES:
 
@@ -183,9 +31,9 @@ IMPROVEMENTS:
 
 ## 0.4.0 (March 6, 2017)
 
-BREAKING CHANGES:
+BREAKING CHANGES: 
 
-- Query takes RequestQuery and returns ResponseQuery. The request is split into `data` and `path`,
+- Query takes RequestQuery and returns ResponseQuery. The request is split into `data` and `path`, 
 can specify a height to query the state from, and whether or not the response should come with a proof.
 The response returns the corresponding key-value pair, with proof if requested.
 
@@ -194,7 +42,7 @@ message RequestQuery{
 	bytes data = 1;
 	string path = 2;
 	uint64 height = 3;
-	bool prove = 4;
+	bool prove = 4; 
 }
 
 message ResponseQuery{
@@ -270,7 +118,7 @@ message Header {
 	bytes last_commit_hash = 6;
 	bytes data_hash = 7;
 	bytes validators_hash = 8;
-	bytes app_hash = 9;
+	bytes app_hash = 9; 
 }
 
 message BlockID {

@@ -14,11 +14,14 @@ import (
 	cmn "github.com/tendermint/tmlibs/common"
 )
 
-const reqQueueSize = 256 // TODO make configurable
-// const maxResponseSize = 1048576 // 1MB TODO make configurable
-const flushThrottleMS = 20 // Don't wait longer than...
+const (
+	OK  = types.CodeType_OK
+	LOG = ""
+)
 
-var _ Client = (*socketClient)(nil)
+const reqQueueSize = 256        // TODO make configurable
+const maxResponseSize = 1048576 // 1MB TODO make configurable
+const flushThrottleMS = 20      // Don't wait longer than...
 
 // This is goroutine-safe, but users should beware that
 // the application in general is not meant to be interfaced
@@ -54,9 +57,7 @@ func NewSocketClient(addr string, mustConnect bool) *socketClient {
 }
 
 func (cli *socketClient) OnStart() error {
-	if err := cli.BaseService.OnStart(); err != nil {
-		return err
-	}
+	cli.BaseService.OnStart()
 
 	var err error
 	var conn net.Conn
@@ -68,7 +69,7 @@ RETRY_LOOP:
 				return err
 			}
 			cli.Logger.Error(fmt.Sprintf("abci.socketClient failed to connect to %v.  Retrying...", cli.addr))
-			time.Sleep(time.Second * dialRetryIntervalSeconds)
+			time.Sleep(time.Second * 3)
 			continue RETRY_LOOP
 		}
 		cli.conn = conn
@@ -94,11 +95,11 @@ func (cli *socketClient) OnStop() {
 
 // Stop the client and set the error
 func (cli *socketClient) StopForError(err error) {
+	cli.mtx.Lock()
 	if !cli.IsRunning() {
 		return
 	}
 
-	cli.mtx.Lock()
 	if cli.err == nil {
 		cli.err = err
 	}
@@ -135,7 +136,7 @@ func (cli *socketClient) sendRequestsRoutine(conn net.Conn) {
 			default:
 				// Probably will fill the buffer, or retry later.
 			}
-		case <-cli.Quit():
+		case <-cli.BaseService.Quit:
 			return
 		case reqres := <-cli.reqQueue:
 			cli.willSendReq(reqres)
@@ -230,12 +231,12 @@ func (cli *socketClient) FlushAsync() *ReqRes {
 	return cli.queueRequest(types.ToRequestFlush())
 }
 
-func (cli *socketClient) InfoAsync(req types.RequestInfo) *ReqRes {
-	return cli.queueRequest(types.ToRequestInfo(req))
+func (cli *socketClient) InfoAsync() *ReqRes {
+	return cli.queueRequest(types.ToRequestInfo())
 }
 
-func (cli *socketClient) SetOptionAsync(req types.RequestSetOption) *ReqRes {
-	return cli.queueRequest(types.ToRequestSetOption(req))
+func (cli *socketClient) SetOptionAsync(key string, value string) *ReqRes {
+	return cli.queueRequest(types.ToRequestSetOption(key, value))
 }
 
 func (cli *socketClient) DeliverTxAsync(tx []byte) *ReqRes {
@@ -246,95 +247,143 @@ func (cli *socketClient) CheckTxAsync(tx []byte) *ReqRes {
 	return cli.queueRequest(types.ToRequestCheckTx(tx))
 }
 
-func (cli *socketClient) QueryAsync(req types.RequestQuery) *ReqRes {
-	return cli.queueRequest(types.ToRequestQuery(req))
+func (cli *socketClient) QueryAsync(reqQuery types.RequestQuery) *ReqRes {
+	return cli.queueRequest(types.ToRequestQuery(reqQuery))
 }
 
 func (cli *socketClient) CommitAsync() *ReqRes {
 	return cli.queueRequest(types.ToRequestCommit())
 }
 
-func (cli *socketClient) InitChainAsync(req types.RequestInitChain) *ReqRes {
-	return cli.queueRequest(types.ToRequestInitChain(req))
+func (cli *socketClient) InitChainAsync(validators []*types.Validator) *ReqRes {
+	return cli.queueRequest(types.ToRequestInitChain(validators))
 }
 
-func (cli *socketClient) BeginBlockAsync(req types.RequestBeginBlock) *ReqRes {
-	return cli.queueRequest(types.ToRequestBeginBlock(req))
+func (cli *socketClient) BeginBlockAsync(hash []byte, header *types.Header) *ReqRes {
+	return cli.queueRequest(types.ToRequestBeginBlock(hash, header))
 }
 
-func (cli *socketClient) EndBlockAsync(req types.RequestEndBlock) *ReqRes {
-	return cli.queueRequest(types.ToRequestEndBlock(req))
+func (cli *socketClient) EndBlockAsync(height uint64) *ReqRes {
+	return cli.queueRequest(types.ToRequestEndBlock(height))
+}
+
+func (cli *socketClient) SetValidatorsAsync(validators []*types.Validator) *ReqRes {
+	return cli.queueRequest(types.ToRequestSetValidatorsAsync(validators))
 }
 
 //----------------------------------------
 
+func (cli *socketClient) EchoSync(msg string) (res types.Result) {
+	reqres := cli.queueRequest(types.ToRequestEcho(msg))
+	cli.FlushSync()
+	if err := cli.Error(); err != nil {
+		return types.ErrInternalError.SetLog(err.Error())
+	}
+	resp := reqres.Response.GetEcho()
+	return types.Result{Code: OK, Data: []byte(resp.Message)}
+}
+
 func (cli *socketClient) FlushSync() error {
 	reqRes := cli.queueRequest(types.ToRequestFlush())
 	if err := cli.Error(); err != nil {
-		return err
+		return types.ErrInternalError.SetLog(err.Error())
 	}
 	reqRes.Wait() // NOTE: if we don't flush the queue, its possible to get stuck here
 	return cli.Error()
 }
 
-func (cli *socketClient) EchoSync(msg string) (*types.ResponseEcho, error) {
-	reqres := cli.queueRequest(types.ToRequestEcho(msg))
+func (cli *socketClient) InfoSync() (resInfo types.ResponseInfo, err error) {
+	reqres := cli.queueRequest(types.ToRequestInfo())
 	cli.FlushSync()
-	return reqres.Response.GetEcho(), cli.Error()
+	if err := cli.Error(); err != nil {
+		return resInfo, err
+	}
+	if resInfo_ := reqres.Response.GetInfo(); resInfo_ != nil {
+		return *resInfo_, nil
+	}
+	return resInfo, nil
 }
 
-func (cli *socketClient) InfoSync(req types.RequestInfo) (*types.ResponseInfo, error) {
-	reqres := cli.queueRequest(types.ToRequestInfo(req))
+func (cli *socketClient) SetOptionSync(key string, value string) (res types.Result) {
+	reqres := cli.queueRequest(types.ToRequestSetOption(key, value))
 	cli.FlushSync()
-	return reqres.Response.GetInfo(), cli.Error()
+	if err := cli.Error(); err != nil {
+		return types.ErrInternalError.SetLog(err.Error())
+	}
+	resp := reqres.Response.GetSetOption()
+	return types.Result{Code: OK, Data: nil, Log: resp.Log}
 }
 
-func (cli *socketClient) SetOptionSync(req types.RequestSetOption) (*types.ResponseSetOption, error) {
-	reqres := cli.queueRequest(types.ToRequestSetOption(req))
-	cli.FlushSync()
-	return reqres.Response.GetSetOption(), cli.Error()
-}
-
-func (cli *socketClient) DeliverTxSync(tx []byte) (*types.ResponseDeliverTx, error) {
+func (cli *socketClient) DeliverTxSync(tx []byte) (res types.Result) {
 	reqres := cli.queueRequest(types.ToRequestDeliverTx(tx))
 	cli.FlushSync()
-	return reqres.Response.GetDeliverTx(), cli.Error()
+	if err := cli.Error(); err != nil {
+		return types.ErrInternalError.SetLog(err.Error())
+	}
+	resp := reqres.Response.GetDeliverTx()
+	return types.Result{Code: resp.Code, Data: resp.Data, Log: resp.Log}
 }
 
-func (cli *socketClient) CheckTxSync(tx []byte) (*types.ResponseCheckTx, error) {
+func (cli *socketClient) CheckTxSync(tx []byte) (res types.Result) {
 	reqres := cli.queueRequest(types.ToRequestCheckTx(tx))
 	cli.FlushSync()
-	return reqres.Response.GetCheckTx(), cli.Error()
+	if err := cli.Error(); err != nil {
+		return types.ErrInternalError.SetLog(err.Error())
+	}
+	resp := reqres.Response.GetCheckTx()
+	return types.Result{Code: resp.Code, Data: resp.Data, Log: resp.Log}
 }
 
-func (cli *socketClient) QuerySync(req types.RequestQuery) (*types.ResponseQuery, error) {
-	reqres := cli.queueRequest(types.ToRequestQuery(req))
+func (cli *socketClient) QuerySync(reqQuery types.RequestQuery) (resQuery types.ResponseQuery, err error) {
+	reqres := cli.queueRequest(types.ToRequestQuery(reqQuery))
 	cli.FlushSync()
-	return reqres.Response.GetQuery(), cli.Error()
+	if err := cli.Error(); err != nil {
+		return resQuery, err
+	}
+	if resQuery_ := reqres.Response.GetQuery(); resQuery_ != nil {
+		return *resQuery_, nil
+	}
+	return resQuery, nil
 }
 
-func (cli *socketClient) CommitSync() (*types.ResponseCommit, error) {
+func (cli *socketClient) CommitSync() (res types.Result) {
 	reqres := cli.queueRequest(types.ToRequestCommit())
 	cli.FlushSync()
-	return reqres.Response.GetCommit(), cli.Error()
+	if err := cli.Error(); err != nil {
+		return types.ErrInternalError.SetLog(err.Error())
+	}
+	resp := reqres.Response.GetCommit()
+	return types.Result{Code: resp.Code, Data: resp.Data, Log: resp.Log}
 }
 
-func (cli *socketClient) InitChainSync(req types.RequestInitChain) (*types.ResponseInitChain, error) {
-	reqres := cli.queueRequest(types.ToRequestInitChain(req))
+func (cli *socketClient) InitChainSync(validators []*types.Validator) (err error) {
+	cli.queueRequest(types.ToRequestInitChain(validators))
 	cli.FlushSync()
-	return reqres.Response.GetInitChain(), cli.Error()
+	if err := cli.Error(); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (cli *socketClient) BeginBlockSync(req types.RequestBeginBlock) (*types.ResponseBeginBlock, error) {
-	reqres := cli.queueRequest(types.ToRequestBeginBlock(req))
+func (cli *socketClient) BeginBlockSync(hash []byte, header *types.Header) (err error) {
+	cli.queueRequest(types.ToRequestBeginBlock(hash, header))
 	cli.FlushSync()
-	return reqres.Response.GetBeginBlock(), cli.Error()
+	if err := cli.Error(); err != nil {
+		return err
+	}
+	return nil
 }
 
-func (cli *socketClient) EndBlockSync(req types.RequestEndBlock) (*types.ResponseEndBlock, error) {
-	reqres := cli.queueRequest(types.ToRequestEndBlock(req))
+func (cli *socketClient) EndBlockSync(height uint64) (resEndBlock types.ResponseEndBlock, err error) {
+	reqres := cli.queueRequest(types.ToRequestEndBlock(height))
 	cli.FlushSync()
-	return reqres.Response.GetEndBlock(), cli.Error()
+	if err := cli.Error(); err != nil {
+		return resEndBlock, err
+	}
+	if blk := reqres.Response.GetEndBlock(); blk != nil {
+		return *blk, nil
+	}
+	return resEndBlock, nil
 }
 
 //----------------------------------------
@@ -394,6 +443,8 @@ func resMatchesReq(req *types.Request, res *types.Response) (ok bool) {
 		_, ok = res.Value.(*types.Response_BeginBlock)
 	case *types.Request_EndBlock:
 		_, ok = res.Value.(*types.Response_EndBlock)
+	case *types.Request_SetValidators:
+		_, ok = res.Value.(*types.Response_SetValidators)
 	}
 	return ok
 }

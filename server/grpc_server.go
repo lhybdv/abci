@@ -2,6 +2,7 @@ package server
 
 import (
 	"net"
+	"strings"
 
 	"google.golang.org/grpc"
 
@@ -22,7 +23,8 @@ type GRPCServer struct {
 
 // NewGRPCServer returns a new gRPC ABCI server
 func NewGRPCServer(protoAddr string, app types.ABCIApplicationServer) cmn.Service {
-	proto, addr := cmn.ProtocolAndAddress(protoAddr)
+	parts := strings.SplitN(protoAddr, "://", 2)
+	proto, addr := parts[0], parts[1]
 	s := &GRPCServer{
 		proto:    proto,
 		addr:     addr,
@@ -35,14 +37,11 @@ func NewGRPCServer(protoAddr string, app types.ABCIApplicationServer) cmn.Servic
 
 // OnStart starts the gRPC service
 func (s *GRPCServer) OnStart() error {
-	if err := s.BaseService.OnStart(); err != nil {
-		return err
-	}
+	s.BaseService.OnStart()
 	ln, err := net.Listen(s.proto, s.addr)
 	if err != nil {
 		return err
 	}
-	s.Logger.Info("Listening", "proto", s.proto, "addr", s.addr)
 	s.listener = ln
 	s.server = grpc.NewServer()
 	types.RegisterABCIApplicationServer(s.server, s.app)

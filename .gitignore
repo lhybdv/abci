@@ -5,3 +5,6 @@ types/types.pb.go
 abci-cli
 coverage.txt
 profile.out
+
+.vscode/
+.idea/

@@ -1,5 +1,4 @@
 #! /bin/bash
-set -e
 
 # Get the root directory.
 SOURCE="${BASH_SOURCE[0]}"
@@ -12,13 +11,13 @@ cd "$DIR" || exit
 function testExample() {
 	N=$1
 	INPUT=$2
-	APP="$3 $4"
+	APP=$3
 
-	echo "Example $N: $APP"
+	echo "Example $N"
 	$APP &> /dev/null &
 	sleep 2
-	abci-cli --log_level=error --verbose batch < "$INPUT" > "${INPUT}.out.new"
-	killall "$3"
+	abci-cli --verbose batch < "$INPUT" > "${INPUT}.out.new"
+	killall "$APP"
 
 	pre=$(shasum < "${INPUT}.out")
 	post=$(shasum < "${INPUT}.out.new")
@@ -35,8 +34,8 @@ function testExample() {
 	rm "${INPUT}".out.new
 }
 
-testExample 1 tests/test_cli/ex1.abci abci-cli kvstore
-testExample 2 tests/test_cli/ex2.abci abci-cli counter
+testExample 1 tests/test_cli/ex1.abci dummy
+testExample 2 tests/test_cli/ex2.abci counter
 
 echo ""
 echo "PASS"

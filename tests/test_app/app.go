@@ -4,75 +4,94 @@ import (
 	"bytes"
 	"fmt"
 	"os"
+	"time"
 
 	abcicli "github.com/tendermint/abci/client"
 	"github.com/tendermint/abci/types"
 	"github.com/tendermint/tmlibs/log"
+	"github.com/tendermint/tmlibs/process"
 )
+
+func startApp(abciApp string) *process.Process {
+	// Start the app
+	//outBuf := NewBufferCloser(nil)
+	proc, err := process.StartProcess("abci_app",
+		"",
+		"bash",
+		[]string{"-c", abciApp},
+		nil,
+		os.Stdout,
+	)
+	if err != nil {
+		panic("running abci_app: " + err.Error())
+	}
+
+	// TODO a better way to handle this?
+	time.Sleep(time.Second)
+
+	return proc
+}
 
 func startClient(abciType string) abcicli.Client {
 	// Start client
-	client, err := abcicli.NewClient("tcp://127.0.0.1:26658", abciType, true)
+	client, err := abcicli.NewClient("tcp://127.0.0.1:46658", abciType, true)
 	if err != nil {
 		panic(err.Error())
 	}
 	logger := log.NewTMLogger(log.NewSyncWriter(os.Stdout))
 	client.SetLogger(logger.With("module", "abcicli"))
-	if err := client.Start(); err != nil {
-		panicf("connecting to abci_app: %v", err.Error())
+	if _, err := client.Start(); err != nil {
+		panic("connecting to abci_app: " + err.Error())
 	}
 
 	return client
 }
 
 func setOption(client abcicli.Client, key, value string) {
-	_, err := client.SetOptionSync(types.RequestSetOption{key, value})
-	if err != nil {
-		panicf("setting %v=%v: \nerr: %v", key, value, err)
+	res := client.SetOptionSync(key, value)
+	_, _, log := res.Code, res.Data, res.Log
+	if res.IsErr() {
+		panic(fmt.Sprintf("setting %v=%v: \nlog: %v", key, value, log))
 	}
 }
 
 func commit(client abcicli.Client, hashExp []byte) {
-	res, err := client.CommitSync()
-	if err != nil {
-		panicf("client error: %v", err)
+	res := client.CommitSync()
+	_, data, log := res.Code, res.Data, res.Log
+	if res.IsErr() {
+		panic(fmt.Sprintf("committing %v\nlog: %v", log))
 	}
 	if !bytes.Equal(res.Data, hashExp) {
-		panicf("Commit hash was unexpected. Got %X expected %X", res.Data, hashExp)
+		panic(fmt.Sprintf("Commit hash was unexpected. Got %X expected %X",
+			data, hashExp))
 	}
 }
 
-func deliverTx(client abcicli.Client, txBytes []byte, codeExp uint32, dataExp []byte) {
-	res, err := client.DeliverTxSync(txBytes)
-	if err != nil {
-		panicf("client error: %v", err)
+func deliverTx(client abcicli.Client, txBytes []byte, codeExp types.CodeType, dataExp []byte) {
+	res := client.DeliverTxSync(txBytes)
+	code, data, log := res.Code, res.Data, res.Log
+	if code != codeExp {
+		panic(fmt.Sprintf("DeliverTx response code was unexpected. Got %v expected %v. Log: %v",
+			code, codeExp, log))
 	}
-	if res.Code != codeExp {
-		panicf("DeliverTx response code was unexpected. Got %v expected %v. Log: %v", res.Code, codeExp, res.Log)
-	}
-	if !bytes.Equal(res.Data, dataExp) {
-		panicf("DeliverTx response data was unexpected. Got %X expected %X", res.Data, dataExp)
+	if !bytes.Equal(data, dataExp) {
+		panic(fmt.Sprintf("DeliverTx response data was unexpected. Got %X expected %X",
+			data, dataExp))
 	}
 }
 
-/*func checkTx(client abcicli.Client, txBytes []byte, codeExp uint32, dataExp []byte) {
-	res, err := client.CheckTxSync(txBytes)
-	if err != nil {
-		panicf("client error: %v", err)
-	}
+func checkTx(client abcicli.Client, txBytes []byte, codeExp types.CodeType, dataExp []byte) {
+	res := client.CheckTxSync(txBytes)
+	code, data, log := res.Code, res.Data, res.Log
 	if res.IsErr() {
-		panicf("checking tx %X: %v\nlog: %v", txBytes, res.Log)
+		panic(fmt.Sprintf("checking tx %X: %v\nlog: %v", txBytes, log))
 	}
-	if res.Code != codeExp {
-		panicf("CheckTx response code was unexpected. Got %v expected %v. Log: %v",
-			res.Code, codeExp, res.Log)
+	if code != codeExp {
+		panic(fmt.Sprintf("CheckTx response code was unexpected. Got %v expected %v. Log: %v",
+			code, codeExp, log))
 	}
-	if !bytes.Equal(res.Data, dataExp) {
-		panicf("CheckTx response data was unexpected. Got %X expected %X",
-			res.Data, dataExp)
+	if !bytes.Equal(data, dataExp) {
+		panic(fmt.Sprintf("CheckTx response data was unexpected. Got %X expected %X",
+			data, dataExp))
 	}
-}*/
-
-func panicf(format string, a ...interface{}) {
-	panic(fmt.Sprintf(format, a...))
 }

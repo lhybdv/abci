@@ -11,16 +11,11 @@ DIR="$( cd -P "$( dirname "$SOURCE" )" && pwd )"
 # Change into that dir because we expect that.
 cd "$DIR"
 
-echo "RUN COUNTER OVER SOCKET"
 # test golang counter
 ABCI_APP="counter" go run  ./*.go
-echo "----------------------"
 
-
-echo "RUN COUNTER OVER GRPC"
 # test golang counter via grpc
-ABCI_APP="counter --abci=grpc" ABCI="grpc" go run ./*.go
-echo "----------------------"
+ABCI_APP="counter -abci=grpc" ABCI="grpc" go run ./*.go
 
 # test nodejs counter
 # TODO: fix node app
