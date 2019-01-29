@@ -25,4 +25,7 @@ var (
 	ErrBaseUnknownPubKey        = NewError(CodeType_BaseUnknownPubKey, "Error (base) unknown pubkey")
 
 	ErrUnmashallJson            = NewError(CodeType_EncodingError,"[Trias]Unmashall the tx json error")
+	ErrContractExecute			= NewError(CodeType_ContractExecuteErr, "[Trias]Execute contract error")
+	ErrDeliverTrans				= NewError(CodeType_DeliverTrans, "[Trias] Deliver UTXO error")
+	ErrCheckTrans				= NewError(CodeType_CheckTrans, "[Trias] Check UTXO error")
 )

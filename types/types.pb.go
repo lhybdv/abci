@@ -159,6 +159,10 @@ const (
 	CodeType_GovInvalidMember      CodeType = 208
 	CodeType_GovInvalidVote        CodeType = 209
 	CodeType_GovInvalidVotingPower CodeType = 210
+	// trias execute error
+	CodeType_ContractExecuteErr   	CodeType = 1101
+	CodeType_CheckTrans			  	CodeType = 1201
+	CodeType_DeliverTrans			CodeType = 1202
 )
 
 var CodeType_name = map[int32]string{

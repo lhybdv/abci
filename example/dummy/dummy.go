@@ -52,19 +52,20 @@ func (app *DummyApplication) Query(reqQuery types.RequestQuery) (resQuery types.
 		resQuery.Value = value
 		resQuery.Proof = proof
 		if exists {
-			resQuery.Log = "exists"
+			resQuery.Log = "proof exists"
 		} else {
-			resQuery.Log = "does not exist"
+			resQuery.Log = "proof oes not exist"
 		}
 		return
 	} else {
 		index, value, exists := app.state.Get(reqQuery.Data)
 		resQuery.Index = int64(index)
 		resQuery.Value = value
+		resQuery.Key = reqQuery.Data
 		if exists {
-			resQuery.Log = "exists"
+			resQuery.Log = "get exists"
 		} else {
-			resQuery.Log = "does not exist"
+			resQuery.Log = "get does not exist"
 		}
 		return
 	}

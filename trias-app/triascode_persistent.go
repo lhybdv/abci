@@ -9,6 +9,7 @@ package triasapp
 import (
 	"bytes"
 	"encoding/hex"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -44,7 +45,7 @@ type PersistentTriasCodeApplication struct {
 func NewPersistentTriasCodeApplication(dbDir string) *PersistentTriasCodeApplication {
 	db := dbm.NewDB("triascode", "leveldb", dbDir)
 	lastBlock := LoadLastBlock(db)
-
+	//iavl.
 	stateTree := iavl.NewIAVLTree(0, db)
 	stateTree.Load(lastBlock.AppHash)
 
@@ -77,6 +78,7 @@ func (app *PersistentTriasCodeApplication) SetOption(key string, value string) (
 func (app *PersistentTriasCodeApplication) DeliverTx(tx []byte) types.Result {
 	// if it starts with "val:", update the validator set
 	// format is "val:pubkey/power"
+	fmt.Println("triascode_persistent Deliver Tx ")
 	if isValidatorTx(tx) {
 		// update validators in the merkle tree
 		// and in app.changes
@@ -93,9 +95,12 @@ func (app *PersistentTriasCodeApplication) CheckTx(tx []byte) types.Result {
 
 func (app *PersistentTriasCodeApplication) Commit() types.Result {
 	// Save
-	appHash := app.app.state.Save()
-	app.logger.Info("Saved state", "root", appHash)
 
+	appHash := app.app.state.Save()
+
+	app.logger.Info("Saved state", "root", appHash)
+	fmt.Println("the app.app.state.Hash() is ", appHash)
+	fmt.Println("the app.blockHeader.Height is ",app.blockHeader.Height)
 	lastBlock := LastBlockInfo{
 		Height:  app.blockHeader.Height,
 		AppHash: appHash, // this hash will be in the next block header
@@ -125,7 +130,8 @@ func (app *PersistentTriasCodeApplication) InitChain(validators []*types.Validat
 func (app *PersistentTriasCodeApplication) BeginBlock(hash []byte, header *types.Header) {
 	// update latest block info
 	app.blockHeader = header
-
+	fmt.Println("[triascodepersisent] Begin Block ")
+	app.logger.Error("[triascodepersisent] Begin Block ")
 	// reset valset changes
 	app.changes = make([]*types.Validator, 0)
 }

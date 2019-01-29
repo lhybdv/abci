@@ -43,7 +43,10 @@ enum CodeType {
 	GovInvalidMember      = 208;
 	GovInvalidVote        = 209;
 	GovInvalidVotingPower = 210;
-
+    // trias execute error
+    ContractExecuteErr    = 1101
+    CheckTrans            = 1201
+    DeliverTrans		  = 1202
 }
 
 //----------------------------------------

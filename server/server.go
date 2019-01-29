@@ -19,6 +19,7 @@ import (
 func NewServer(protoAddr, transport string, app types.Application) (cmn.Service, error) {
 	var s cmn.Service
 	var err error
+	fmt.Println("the server type is :", transport)
 	switch transport {
 	case "socket":
 		s = NewSocketServer(protoAddr, app)
